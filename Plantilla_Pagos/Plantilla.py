@@ -13,8 +13,6 @@ from datetime import datetime
 from tkinter import Toplevel, ttk
 
 
-
-
 # FUNCIONES
 
 # Conexion base de datos 
@@ -35,20 +33,24 @@ def conectar_db():
         return None
 
 
-# BOTON PARA AÑADIR PARTIDA
-
 
 # ACtulaizacion saldo
 def actualizar_saldo(event=None):
     partida_nombre = combo_partida.get()
+    
+    print(f"Valor seleccionado en el combo (automático): '{partida_nombre}'")
+    print(f"Claves en partidas_dict: {partidas_dict.keys()}")
     if partida_nombre in partidas_dict:
-        partida_id = partidas_dict[partida_nombre]
-        conn = conectar_db()
-        cursor = conn.cursor()
-        cursor.execute("SELECT monto_disponible FROM partidas_presupuestarias WHERE id = ?", partida_id)
-        saldo = cursor.fetchone()[0]
-        conn.close()
-        label_saldo.configure(text=f"Saldo disponible: ₡{saldo:,.2f}")
+        try:
+            partida_id = int(partidas_dict[partida_nombre])
+            conn = conectar_db()
+            cursor = conn.cursor()
+            cursor.execute("SELECT monto_disponible FROM partidas_presupuestarias WHERE id = ?", (partida_id,))
+            saldo = cursor.fetchone()[0] # Accedemos al primer (y único) elemento
+            
+            label_saldo.configure(text=f"Saldo disponible: ₡{saldo:,.2f}")
+        except (ValueError, TypeError, IndexError):
+            label_saldo.configure(text="Saldo disponible: ₡error") # Manejar posibles errores
     else:
         label_saldo.configure(text="Saldo disponible: ₡0.00")
 
@@ -212,12 +214,6 @@ ctk.CTkButton(app, text="Registrar Pago", command=guardar_pago).pack(pady=15)
 ctk.CTkButton(app, text="Limpiar", command=limpiar_campos).pack()
 
 ctk.CTkButton(app, text="Ver Historial de Pagos", command=ver_historial).pack(pady=5)
-
-    # PARA MOSTRAR PARTIDAS AÑADIDA
-
-
-
-
 
 
 app.mainloop()
