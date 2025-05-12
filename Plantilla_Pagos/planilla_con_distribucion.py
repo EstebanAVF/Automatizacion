@@ -3,6 +3,8 @@ import pyodbc
 import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import datetime
+from decimal import Decimal
+
 
 # Variables globales
 partidas_agregadas = []
@@ -39,6 +41,14 @@ def cargar_partidas():
     conn.close()
     return {f"{codigo} (ID: {id})": id for id, codigo in data}
 
+def cargar_programas():
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, nombre FROM programas")
+    data = cursor.fetchall()
+    conn.close()
+    return {f"{nombre} (ID: {id})": id for id, nombre in data}
+
 # Agregar partida a distribución
 def agregar_partida():
     codigo = combo_partida.get()
@@ -56,8 +66,16 @@ def agregar_partida():
         messagebox.showerror("Error", "Monto inválido.")
         return
 
-    tree_partidas.insert("", "end", values=(codigo, f"₡{monto:,.2f}"))
-    partidas_agregadas.append((codigo, monto))
+    
+    #Parte nueva
+    tree_partidas.insert("", "end", values=(codigo, f"₡{monto:,.2f}", programa_nombre))
+    programa_nombre = combo_programa.get()
+    if programa_nombre not in programas_dict:
+        messagebox.showerror("Error", "Debe seleccionar un programa válido.")
+        return
+    programa_id = programas_dict[programa_nombre]
+    partidas_agregadas.append((codigo, monto, programa_id, programa_nombre))
+
     total_pago.set(total_pago.get() + monto)
     entry_monto.delete(0, tk.END)
 
@@ -92,27 +110,35 @@ def registrar_pago():
         pago_id = cursor.fetchone()[0]
 
         # Insertar detalle por partida
-        for codigo, monto in partidas_agregadas:
+        for codigo, monto, programa_id, programa_nombre in partidas_agregadas:
             cursor.execute("SELECT id, monto_disponible FROM partidas_presupuestarias WHERE codigo_partida LIKE ?", f"%{codigo.split(' ')[0]}%")
             resultado = cursor.fetchone()
             if resultado:
                 partida_id, saldo_actual = resultado
-                if monto > saldo_actual:
+
+                # Convertir 'monto' a Decimal para que coincida con saldo_actual
+                monto_decimal = Decimal(str(monto))
+
+                if monto_decimal > saldo_actual:
                     messagebox.showerror("Error", f"Saldo insuficiente en {codigo}")
                     conn.rollback()
                     return
-                nuevo_saldo = saldo_actual - monto
+
+                nuevo_saldo = saldo_actual - monto_decimal
 
                 cursor.execute("UPDATE partidas_presupuestarias SET monto_disponible = ? WHERE id = ?", nuevo_saldo, partida_id)
-                cursor.execute("INSERT INTO detalle_pago_partidas (id_pago, id_partida, monto_asignado, saldo_antes, saldo_despues) VALUES (?, ?, ?, ?, ?)",
-                               pago_id, partida_id, monto, saldo_actual, nuevo_saldo)
+                cursor.execute(
+                        "INSERT INTO detalle_pago_partidas (id_pago, id_partida, monto_asignado, saldo_antes, saldo_despues, id_programa) VALUES (?, ?, ?, ?, ?, ?)",
+                        pago_id, partida_id, monto_decimal, saldo_actual, nuevo_saldo, programa_id
+                        )
+
             else:
                 messagebox.showerror("Error", f"No se encontró la partida {codigo}")
                 conn.rollback()
                 return
 
         # Libro de bancos
-        cursor.execute("INSERT INTO libro_bancos (fecha, concepto, monto, tipo_movimiento, referencia, proveedor_id) VALUES (GETDATE(), ?, ?, 'egreso', ?, ?)",
+        cursor.execute("INSERT INTO libro_bancos (fecha, descripcion, monto, tipo_movimiento, referencia, proveedor_id) VALUES (GETDATE(), ?, ?, 'egreso', ?, ?)",
                        f"Pago Factura #{factura}", total_pago.get(), factura, proveedor_id)
 
         conn.commit()
@@ -127,6 +153,7 @@ def limpiar_campos():
     entry_factura.delete(0, ctk.END)
     combo_proveedor.set("Seleccionar proveedor")
     combo_partida.set("Seleccionar partida")
+    combo_programa.set("Seleccionar programa")
     entry_monto.delete(0, ctk.END)
     tree_partidas.delete(*tree_partidas.get_children())
     partidas_agregadas.clear()
@@ -144,6 +171,8 @@ total_pago = tk.DoubleVar(value=0.0)
 # Cargar datos iniciales
 proveedores_dict = cargar_proveedores()
 partidas_dict = cargar_partidas()
+programas_dict = cargar_programas()
+
 
 # Formulario
 frame = ctk.CTkFrame(app)
@@ -167,16 +196,22 @@ combo_partida = ctk.CTkComboBox(frame, values=list(partidas_dict.keys()))
 combo_partida.set("Seleccionar partida")
 combo_partida.pack(fill="x")
 
+ctk.CTkLabel(frame, text="Programa").pack(anchor="w")
+combo_programa = ctk.CTkComboBox(frame, values=list(programas_dict.keys()))
+combo_programa.set("Seleccionar programa")
+combo_programa.pack(fill="x")
+
 ctk.CTkLabel(frame, text="Monto").pack(anchor="w")
 entry_monto = ctk.CTkEntry(frame, placeholder_text="Monto")
 entry_monto.pack(fill="x")
 
 ctk.CTkButton(frame, text="Agregar a distribución", command=agregar_partida).pack(pady=10)
 
-tree_partidas = ttk.Treeview(frame, columns=("Partida", "Monto"), show="headings", height=5)
+tree_partidas = ttk.Treeview(frame, columns=("Partida", "Monto", "Programa"), show="headings", height=5)
 tree_partidas.heading("Partida", text="Código Partida")
 tree_partidas.heading("Monto", text="Monto Asignado")
-tree_partidas.pack(fill="both", expand=True, pady=5)
+tree_partidas.heading("Programa", text="Programa")
+
 
 ctk.CTkLabel(frame, textvariable=total_pago, font=("Arial", 14)).pack(anchor="e", pady=5)
 
