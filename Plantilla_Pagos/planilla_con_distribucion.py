@@ -1,4 +1,3 @@
-
 import customtkinter as ctk
 import pyodbc
 import tkinter as tk
@@ -7,7 +6,7 @@ from datetime import datetime
 
 # Variables globales
 partidas_agregadas = []
-total_pago = tk.DoubleVar(value=0.0)
+
 
 # Conexion a base de datos
 def conectar_db():
@@ -137,6 +136,10 @@ def limpiar_campos():
 app = ctk.CTk()
 app.title("Planilla de Pago con Distribución del Gasto")
 app.geometry("700x700")
+
+
+total_pago = tk.DoubleVar(value=0.0)
+
 
 # Cargar datos iniciales
 proveedores_dict = cargar_proveedores()
