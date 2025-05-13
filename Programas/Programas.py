@@ -132,7 +132,7 @@ def crear_frame_programas(master):
     entry_nombre = ctk.CTkEntry(
         frame, placeholder_text="Ingrese el nombre del programa"
     )
-    entry_nombre.pack(fill="x", pady=5)
+    entry_nombre.pack(fill="x", pady=5, expand=True)  # Modificado
 
     ctk.CTkButton(frame, text="Agregar", command=agregar_programa).pack(pady=5)
     ctk.CTkButton(frame, text="Modificar", command=modificar_programa).pack(pady=5)
@@ -143,7 +143,7 @@ def crear_frame_programas(master):
     )
     tree_programas.heading("ID", text="ID")
     tree_programas.heading("Nombre", text="Nombre")
-    tree_programas.pack(fill="both", expand=True, pady=10)
+    tree_programas.pack(fill="both", expand=True, pady=10)  # Modificado
     tree_programas.bind("<ButtonRelease-1>", seleccionar_programa)
 
     cargar_programas()

@@ -5,43 +5,40 @@ from tkinter import ttk, messagebox
 from datetime import datetime
 from decimal import Decimal
 
-
 # Variables globales
 partidas_agregadas = []
 programa_nombre = ""  # Inicializar programa_nombre
 
-
 # Conexion a base de datos
 def conectar_db():
+    # (Tu función conectar_db aquí)
     try:
         conn = pyodbc.connect(
-            r"DRIVER={SQL Server};"
-            r"SERVER=LAPTOP-V800EBTP\SQLEXPRESS01;"
-            r"DATABASE=Automatizacion;"
-            r"Trusted_Connection=yes;"
+            r'DRIVER={SQL Server};'
+            r'SERVER=LAPTOP-V800EBTP\SQLEXPRESS01;'
+            r'DATABASE=Automatizacion;'
+            r'Trusted_Connection=yes;'
         )
         return conn
+    except pyodbc.Error as ex:
+        sqlstate = ex.args[0] if ex.args else "N/A"
+        print(f"Error al conectar a la base de datos: {sqlstate}")
+        messagebox.showerror(
+            "Error de Base de Datos",
+            f"Error al conectar a la base de datos (SQLSTATE: {sqlstate}): {ex}",
+        )
+        return None
     except Exception as e:
-        print("Error al conectar:", e)
+        messagebox.showerror(
+            "Error de Conexión", f"No se pudo establecer la conexión: {e}"
+        )
         return None
 
-
-def limpiar_campos():
-    entry_desc.delete(0, ctk.END)
-    entry_factura.delete(0, ctk.END)
-    combo_proveedor.set("Seleccionar proveedor")
-    combo_partida.set("Seleccionar partida")
-    combo_programa.set("Seleccionar programa")
-    entry_monto.delete(0, ctk.END)
-    tree_partidas.delete(*tree_partidas.get_children())
-    partidas_agregadas.clear()
-    total_pago.set(0.0)
-
-
 # Contiene todas las funciones
-def crear_frame_planilla(master):  # 'master' es el frame del Dashboard
+def crear_frame_planilla(master):
     # Cargar datos
     def cargar_proveedores():
+        # (Tu función cargar_proveedores aquí)
         conn = conectar_db()
         cursor = conn.cursor()
         cursor.execute("SELECT id, nombre FROM proveedores")
@@ -50,6 +47,7 @@ def crear_frame_planilla(master):  # 'master' es el frame del Dashboard
         return {f"{nombre} (ID: {id})": id for id, nombre in data}
 
     def cargar_partidas():
+        # (Tu función cargar_partidas aquí)
         conn = conectar_db()
         cursor = conn.cursor()
         cursor.execute("SELECT id, codigo_partida FROM partidas_presupuestarias")
@@ -58,6 +56,7 @@ def crear_frame_planilla(master):  # 'master' es el frame del Dashboard
         return {f"{codigo} (ID: {id})": id for id, codigo in data}
 
     def cargar_programas():
+        # (Tu función cargar_programas aquí)
         conn = conectar_db()
         cursor = conn.cursor()
         cursor.execute("SELECT id, nombre FROM programas")
@@ -66,6 +65,7 @@ def crear_frame_planilla(master):  # 'master' es el frame del Dashboard
         return {f"{nombre} (ID: {id})": id for id, nombre in data}
 
     def agregar_partida():
+        # (Tu función agregar_partida aquí)
         global programa_nombre  # Indicar que se usará la variable global
         codigo = combo_partida.get()
         monto_str = entry_monto.get()
@@ -99,6 +99,7 @@ def crear_frame_planilla(master):  # 'master' es el frame del Dashboard
 
     # Registrar pago distribuido
     def registrar_pago():
+        # (Tu función registrar_pago aquí - con correcciones)
         if not partidas_agregadas:
             messagebox.showerror("Error", "Debe agregar al menos una partida.")
             return
@@ -118,6 +119,9 @@ def crear_frame_planilla(master):  # 'master' es el frame del Dashboard
 
         try:
             conn = conectar_db()
+            if not conn:
+                return
+
             cursor = conn.cursor()
 
             # Insertar en pagos
@@ -185,15 +189,99 @@ def crear_frame_planilla(master):  # 'master' es el frame del Dashboard
             conn.close()
             messagebox.showinfo("Éxito", "Pago registrado correctamente.")
             limpiar_campos()
+        except pyodbc.Error as db_err:
+            if conn:
+                conn.rollback()
+                conn.close()
+            sqlstate = db_err.args[0] if db_err.args else "N/A"
+            messagebox.showerror(
+                "Error de Base de Datos",
+                f"Error al registrar pago (SQLSTATE: {sqlstate}): {db_err}",
+            )
         except Exception as e:
-            messagebox.showerror("Error", f"Fallo al registrar pago: {e}")
+            if conn:
+                conn.rollback()
+                conn.close()
+            messagebox.showerror("Error Inesperado", f"Fallo al registrar pago: {e}")
 
-    frame = ctk.CTkFrame(master)  # Crear el frame dentro del 'master'
+    def limpiar_campos():
+        # (Tu función limpiar_campos aquí - sin cambios importantes)
+        entry_desc.delete(0, ctk.END)
+        entry_factura.delete(0, ctk.END)
+        combo_proveedor.set("Seleccionar proveedor")
+        combo_partida.set("Seleccionar partida")
+        combo_programa.set("Seleccionar programa")
+        entry_monto.delete(0, ctk.END)
+        tree_partidas.delete(*tree_partidas.get_children())
+        partidas_agregadas.clear()
+        total_pago.set(0.0)
 
-    # Interfaz
-    # app = ctk.CTk()  # ELIMINAR
-    # app.title("Planilla de Pago con Distribución del Gasto")  # ELIMINAR
-    # app.geometry("700x700")  # ELIMINAR
+    def mostrar_registro_pagos():
+        # Función para mostrar el registro de pagos
+        registro_frame.tkraise()  # Mostrar el frame de registro
+        cargar_registro_pagos()  # Cargar los datos en el Treeview
+
+    def cargar_registro_pagos():
+        # Función para cargar los datos del registro de pagos en el Treeview
+        try:
+            for row in tree_registro_pagos.get_children():
+                tree_registro_pagos.delete(row)
+
+            conn = conectar_db()
+            if not conn:
+                return
+
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT
+                    p.id,
+                    p.fecha,
+                    pr.nombre,
+                    p.factura,
+                    p.descripcion,
+                    p.total
+                FROM
+                    pagos p
+                JOIN
+                    proveedores pr ON p.proveedor_id = pr.id
+                """
+            )
+            data = cursor.fetchall()
+
+            for row in data:
+                tree_registro_pagos.insert(
+                    "",
+                    "end",
+                    values=(
+                        row[0],  # ID
+                        row[1].strftime("%Y-%m-%d"),  # Fecha
+                        row[2],  # Proveedor
+                        row[3],  # Factura
+                        row[4],  # Descripción
+                        f"₡{row[5]:,.2f}",  # Total
+                    ),
+                )
+
+            conn.close()
+        except pyodbc.Error as db_err:
+            print("Error de base de datos al cargar registro de pagos:", db_err)
+            messagebox.showerror(
+                "Error de Base de Datos",
+                "Error al cargar el registro de pagos desde la base de datos.",
+            )
+        except Exception as e:
+            print("Error inesperado al cargar registro de pagos:", e)
+            messagebox.showerror(
+                "Error Inesperado", f"Error al cargar el registro de pagos: {e}"
+            )
+
+    frame = ctk.CTkFrame(master)  # Usar el master frame
+    frame.pack(padx=10, pady=10, fill="both", expand=True)
+
+    # Formulario de Registro de Pagos
+    formulario_frame = ctk.CTkFrame(frame)
+    formulario_frame.pack(padx=10, pady=10, fill="x")
 
     total_pago = tk.DoubleVar(value=0.0)
 
@@ -202,56 +290,91 @@ def crear_frame_planilla(master):  # 'master' es el frame del Dashboard
     partidas_dict = cargar_partidas()
     programas_dict = cargar_programas()
 
-    # Formulario
-    # frame = ctk.CTkFrame(app)  # MODIFICAR
-    frame.pack(padx=10, pady=10, fill="both", expand=True)
-
-    ctk.CTkLabel(frame, text="Proveedor").pack(anchor="w")
-    combo_proveedor = ctk.CTkComboBox(frame, values=list(proveedores_dict.keys()))
+    ctk.CTkLabel(formulario_frame, text="Proveedor").pack(anchor="w")
+    combo_proveedor = ctk.CTkComboBox(
+        formulario_frame, values=list(proveedores_dict.keys())
+    )
     combo_proveedor.set("Seleccionar proveedor")
     combo_proveedor.pack(fill="x")
 
-    ctk.CTkLabel(frame, text="Descripción del pago").pack(anchor="w")
-    entry_desc = ctk.CTkEntry(frame, placeholder_text="Descripción")
+    ctk.CTkLabel(formulario_frame, text="Descripción del pago").pack(anchor="w")
+    entry_desc = ctk.CTkEntry(formulario_frame, placeholder_text="Descripción")
     entry_desc.pack(fill="x")
 
-    ctk.CTkLabel(frame, text="Número de Factura").pack(anchor="w")
-    entry_factura = ctk.CTkEntry(frame, placeholder_text="Factura")
+    ctk.CTkLabel(formulario_frame, text="Número de Factura").pack(anchor="w")
+    entry_factura = ctk.CTkEntry(formulario_frame, placeholder_text="Factura")
     entry_factura.pack(fill="x")
 
-    ctk.CTkLabel(frame, text="Partida Presupuestaria").pack(anchor="w")
-    combo_partida = ctk.CTkComboBox(frame, values=list(partidas_dict.keys()))
+    ctk.CTkLabel(formulario_frame, text="Partida Presupuestaria").pack(anchor="w")
+    combo_partida = ctk.CTkComboBox(
+        formulario_frame, values=list(partidas_dict.keys())
+    )
     combo_partida.set("Seleccionar partida")
     combo_partida.pack(fill="x")
 
-    ctk.CTkLabel(frame, text="Programa").pack(anchor="w")
-    combo_programa = ctk.CTkComboBox(frame, values=list(programas_dict.keys()))
+    ctk.CTkLabel(formulario_frame, text="Programa").pack(anchor="w")
+    combo_programa = ctk.CTkComboBox(
+        formulario_frame, values=list(programas_dict.keys())
+    )
     combo_programa.set("Seleccionar programa")
     combo_programa.pack(fill="x")
 
-    ctk.CTkLabel(frame, text="Monto").pack(anchor="w")
-    entry_monto = ctk.CTkEntry(frame, placeholder_text="Monto")
+    ctk.CTkLabel(formulario_frame, text="Monto").pack(anchor="w")
+    entry_monto = ctk.CTkEntry(formulario_frame, placeholder_text="Monto")
     entry_monto.pack(fill="x")
 
-    ctk.CTkButton(frame, text="Agregar a distribución", command=agregar_partida).pack(
-        pady=10
-    )
+    ctk.CTkButton(
+        formulario_frame, text="Agregar a distribución", command=agregar_partida
+    ).pack(pady=10)
 
     tree_partidas = ttk.Treeview(
-        frame, columns=("Partida", "Monto", "Programa"), show="headings", height=5
+        formulario_frame,
+        columns=("Partida", "Monto", "Programa"),
+        show="headings",
+        height=5,
     )
     tree_partidas.heading("Partida", text="Código Partida")
     tree_partidas.heading("Monto", text="Monto Asignado")
     tree_partidas.heading("Programa", text="Programa")
     tree_partidas.pack(fill="both", expand=True)  # Empaquetar el Treeview
 
-    ctk.CTkLabel(frame, textvariable=total_pago, font=("Arial", 14)).pack(
-        anchor="e", pady=5
-    )
+    ctk.CTkLabel(
+        formulario_frame, textvariable=total_pago, font=("Arial", 14)
+    ).pack(anchor="e", pady=5)
 
     ctk.CTkButton(
-        frame, text="Registrar Pago Distribuido", command=registrar_pago
+        formulario_frame, text="Registrar Pago Distribuido", command=registrar_pago
+    ).pack(pady=10)
+    ctk.CTkButton(
+        formulario_frame, text="Ver Registro de Pagos", command=mostrar_registro_pagos
     ).pack(pady=10)
 
+    # Frame de Registro de Pagos
+    registro_frame = ctk.CTkFrame(frame)
+    registro_frame.place(
+        x=0, y=0, relwidth=1, relheight=1
+    )  # Cubrir todo el frame principal
+    registro_frame.lower()  # Enviar al fondo inicialmente
+
+    ctk.CTkLabel(registro_frame, text="Registro de Pagos", font=("Arial", 20)).pack(
+        pady=10
+    )
+
+    tree_registro_pagos = ttk.Treeview(
+        registro_frame,
+        columns=("ID", "Fecha", "Proveedor", "Factura", "Descripción", "Total"),
+        show="headings",
+    )
+    tree_registro_pagos.heading("ID", text="ID")
+    tree_registro_pagos.heading("Fecha", text="Fecha")
+    tree_registro_pagos.heading("Proveedor", text="Proveedor")
+    tree_registro_pagos.heading("Factura", text="Factura")
+    tree_registro_pagos.heading("Descripción", text="Descripción")
+    tree_registro_pagos.heading("Total", text="Total")
+    tree_registro_pagos.pack(fill="both", expand=True)
+
+    ctk.CTkButton(
+        registro_frame, text="Volver al Registro de Pagos", command=lambda: formulario_frame.tkraise()
+    ).pack(pady=10)  # Botón para volver
+
     return frame
-    # app.mainloop()  # ELIMINAR
