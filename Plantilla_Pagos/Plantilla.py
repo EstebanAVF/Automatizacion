@@ -32,8 +32,6 @@ def conectar_db():
         print(f"Error al conectar a la base de datos: {sqlstate}")
         return None
 
-
-
 # ACtulaizacion saldo
 def actualizar_saldo(event=None):
     partida_nombre = combo_partida.get()
@@ -53,7 +51,6 @@ def actualizar_saldo(event=None):
             label_saldo.configure(text="Saldo disponible: ₡error") # Manejar posibles errores
     else:
         label_saldo.configure(text="Saldo disponible: ₡0.00")
-
 
 # Para visualizar historial
 def ver_historial():
@@ -82,7 +79,6 @@ def ver_historial():
 
     for row in rows:
         tree.insert("", "end", values=row)
-
 
 # Cargar proveedores
 def cargar_proveedores():
@@ -166,7 +162,6 @@ def guardar_pago():
     except pyodbc.Error as err:
         messagebox.showerror("Error", f"Error al registrar el pago: {err}")
 
-
 # Limpiar los campso
 def limpiar_campos():
     entry_desc.delete(0, ctk.END)
@@ -176,44 +171,46 @@ def limpiar_campos():
     combo_partida.set("")
 
 
+def crear_frame_programas(master):
+    frame = ctk.CTkFrame(master)
+
+    # Interfaz
+    app = ctk.CTk()
+    app.title("Registro de Planilla de Pago")
+    app.geometry("550x600")
+
+    ctk.CTkLabel(app, text="Planilla de Pago", font=("Arial", 22)).pack(pady=15)
+
+    proveedores_dict = cargar_proveedores()
+    partidas_dict = cargar_partidas()
+
+    combo_proveedor = ctk.CTkComboBox(app, values=list(proveedores_dict.keys()), width=400)
+    combo_proveedor.pack(pady=5)
+    combo_proveedor.set("Seleccionar proveedor")
+
+    combo_partida = ctk.CTkComboBox(app, values=list(partidas_dict.keys()), width=400)
+    combo_partida.pack(pady=5)
+    combo_partida.set("Seleccionar partida presupuestaria")
+
+    combo_partida.bind("<<ComboboxSelected>>", actualizar_saldo)
+    label_saldo = ctk.CTkLabel(app, text="Saldo disponible: ₡0.00", font=("Arial", 16))
+    label_saldo.pack(pady=5)
 
 
-# Interfaz
-app = ctk.CTk()
-app.title("Registro de Planilla de Pago")
-app.geometry("550x600")
+    entry_desc = ctk.CTkEntry(app, placeholder_text="Descripción del pago", width=400)
+    entry_desc.pack(pady=5)
 
-ctk.CTkLabel(app, text="Planilla de Pago", font=("Arial", 22)).pack(pady=15)
+    entry_factura = ctk.CTkEntry(app, placeholder_text="Número de factura", width=400)
+    entry_factura.pack(pady=5)
 
-proveedores_dict = cargar_proveedores()
-partidas_dict = cargar_partidas()
+    entry_monto = ctk.CTkEntry(app, placeholder_text="Monto a pagar", width=400)
+    entry_monto.pack(pady=5)
 
-combo_proveedor = ctk.CTkComboBox(app, values=list(proveedores_dict.keys()), width=400)
-combo_proveedor.pack(pady=5)
-combo_proveedor.set("Seleccionar proveedor")
+    ctk.CTkButton(app, text="Registrar Pago", command=guardar_pago).pack(pady=15)
+    ctk.CTkButton(app, text="Limpiar", command=limpiar_campos).pack()
 
-combo_partida = ctk.CTkComboBox(app, values=list(partidas_dict.keys()), width=400)
-combo_partida.pack(pady=5)
-combo_partida.set("Seleccionar partida presupuestaria")
-
-combo_partida.bind("<<ComboboxSelected>>", actualizar_saldo)
-label_saldo = ctk.CTkLabel(app, text="Saldo disponible: ₡0.00", font=("Arial", 16))
-label_saldo.pack(pady=5)
+    ctk.CTkButton(app, text="Ver Historial de Pagos", command=ver_historial).pack(pady=5)
 
 
-entry_desc = ctk.CTkEntry(app, placeholder_text="Descripción del pago", width=400)
-entry_desc.pack(pady=5)
+    return frame
 
-entry_factura = ctk.CTkEntry(app, placeholder_text="Número de factura", width=400)
-entry_factura.pack(pady=5)
-
-entry_monto = ctk.CTkEntry(app, placeholder_text="Monto a pagar", width=400)
-entry_monto.pack(pady=5)
-
-ctk.CTkButton(app, text="Registrar Pago", command=guardar_pago).pack(pady=15)
-ctk.CTkButton(app, text="Limpiar", command=limpiar_campos).pack()
-
-ctk.CTkButton(app, text="Ver Historial de Pagos", command=ver_historial).pack(pady=5)
-
-
-app.mainloop()
